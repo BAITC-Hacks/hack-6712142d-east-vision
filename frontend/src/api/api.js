@@ -1,4 +1,50 @@
-const API_URL=(import.meta.env.VITE_API_URL||'http://127.0.0.1:8000').replace(/\/$/,'');
-async function request(path,options={},timeout=25000){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeout);try{const response=await fetch(`${API_URL}${path}`,{...options,signal:controller.signal});let payload;try{payload=await response.json();}catch{throw new Error('Сервер вернул ответ в неизвестном формате.');}if(!response.ok){const detail=payload?.detail;throw new Error(typeof detail==='string'?detail:Array.isArray(detail)?detail.map(x=>x.msg).join('; '):'Сервер не смог обработать запрос.');}return payload;}catch(error){if(error.name==='AbortError')throw new Error('Сервер не ответил вовремя. Попробуйте ещё раз.');throw error;}finally{clearTimeout(timer);}}
-export function getSimulationData(){return request('/api/data',{},5000);}
-export function simulate(decisions){return request('/api/simulate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decisions})});}
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+).replace(/\/$/, "");
+async function request(path, options = {}, timeout = 25000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      signal: controller.signal,
+    });
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error("Сервер вернул ответ в неизвестном формате.");
+    }
+    if (!response.ok) {
+      const detail = payload?.detail;
+      throw new Error(
+        typeof detail === "string"
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((x) => x.msg).join("; ")
+            : "Сервер не смог обработать запрос.",
+      );
+    }
+    return payload;
+  } catch (error) {
+    if (error.name === "AbortError")
+      throw new Error("Сервер не ответил вовремя. Попробуйте ещё раз.");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+export function getSimulationData() {
+  return request("/api/data", {}, 5000);
+}
+export function simulate(decisions) {
+  return request("/api/simulate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      decisions,
+    }),
+  });
+}

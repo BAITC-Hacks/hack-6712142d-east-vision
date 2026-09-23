@@ -1,8 +1,110 @@
-import weights from './weights.json';
-export const categories=[{id:'all',name:'Все инициативы',icon:'grid'},{id:'transport',name:'Транспорт',icon:'bus'},{id:'ecology',name:'Экология',icon:'leaf'},{id:'social',name:'Соцсфера',icon:'people'},{id:'safety',name:'Безопасность',icon:'shield'},{id:'services',name:'Сервисы',icon:'bolt'}];
-export const descriptions={M1:'Больше пространства общественному транспорту.',M2:'Перекрёстки подстраиваются под ритм города.',M3:'Новые связи между домом, работой и городом.',M4:'Зелёное место для прогулок и встреч.',M5:'Чистый воздух начинается с чистого тепла.',M6:'Больше деревьев. Меньше ветра. Лучше воздух.',M7:'Место для знаний и счастливого детства.',M8:'Медицинская помощь ближе к дому.',M9:'Активная жизнь начинается во дворе.',M10:'Спокойные прогулки в любое время суток.',M11:'Безопасность на каждом шаге.',M12:'Город, который слышит своих жителей.',M13:'Тепло и вода, на которые можно положиться.',M14:'Помощь там, где она нужна прямо сейчас.'};
-export const profiles={'Есиль':'Развитая среда. Внимание — транспорту и доступности школ.','Алматы':'Сложившийся район. Приоритеты — обновление сетей и дороги.','Сарыарка':'Чистый воздух, зелёные пространства и надёжное ЖКХ.','Байконур':'Сбалансированный район с потенциалом для развития.','Нура':'Растущий район, которому нужны школы и поликлиники.'};
-export const fmt=v=>Number(v).toLocaleString('ru-RU',{maximumFractionDigits:2});
-export const signed=v=>`${v>0?'+':''}${fmt(v)}`;
-export function initialScores(data){const districts=Object.entries(data.districts).map(([name,d])=>({name,population:d.population_share*100,score:Object.entries(d.indicators).reduce((s,[k,v])=>s+v*(weights[k]||0),0)}));const avg=districts.reduce((s,d)=>s+d.score*data.districts[d.name].population_share,0);const critical=Object.values(data.districts).reduce((s,d)=>s+Object.values(d.indicators).filter(v=>v<40).length,0);return {districts,score:Math.round((.7*avg+.3*Math.min(...districts.map(d=>d.score))-critical)*100)/100};}
-export function validateSelection(items,budget){if(items.length>5)return 'В сценарии уже пять решений. Сначала уберите одну инициативу.';if(items.reduce((s,i)=>s+i.cost,0)>budget)return 'Недостаточно бюджета. Измените состав сценария.';for(const c of categories.slice(1))if(items.filter(i=>i.category===c.id).length>2)return `Не более двух инициатив в направлении «${c.name}».`;if(items.some(i=>i.id==='M1')&&items.some(i=>i.id==='M3'))return 'Автобусная полоса и линия ЛРТ несовместимы в одном сценарии.';for(const pair of [['M4','M7'],['M5','M13']]){const a=items.find(i=>i.id===pair[0]);const b=items.find(i=>i.id===pair[1]);if(a&&b&&a.district===b.district)return `«${a.name}» и «${b.name}» нельзя размещать в одном районе.`;}return '';}
+import weights from "./weights.json";
+export const categories = [
+  {
+    id: "all",
+    name: "Все инициативы",
+    icon: "grid",
+  },
+  {
+    id: "transport",
+    name: "Транспорт",
+    icon: "bus",
+  },
+  {
+    id: "ecology",
+    name: "Экология",
+    icon: "leaf",
+  },
+  {
+    id: "social",
+    name: "Соцсфера",
+    icon: "people",
+  },
+  {
+    id: "safety",
+    name: "Безопасность",
+    icon: "shield",
+  },
+  {
+    id: "services",
+    name: "Сервисы",
+    icon: "bolt",
+  },
+];
+export const descriptions = {
+  M1: "Больше пространства общественному транспорту.",
+  M2: "Перекрёстки подстраиваются под ритм города.",
+  M3: "Новые связи между домом, работой и городом.",
+  M4: "Зелёное место для прогулок и встреч.",
+  M5: "Чистый воздух начинается с чистого тепла.",
+  M6: "Больше деревьев. Меньше ветра. Лучше воздух.",
+  M7: "Место для знаний и счастливого детства.",
+  M8: "Медицинская помощь ближе к дому.",
+  M9: "Активная жизнь начинается во дворе.",
+  M10: "Спокойные прогулки в любое время суток.",
+  M11: "Безопасность на каждом шаге.",
+  M12: "Город, который слышит своих жителей.",
+  M13: "Тепло и вода, на которые можно положиться.",
+  M14: "Помощь там, где она нужна прямо сейчас.",
+};
+export const profiles = {
+  Есиль: "Развитая среда. Внимание — транспорту и доступности школ.",
+  Алматы: "Сложившийся район. Приоритеты — обновление сетей и дороги.",
+  Сарыарка: "Чистый воздух, зелёные пространства и надёжное ЖКХ.",
+  Байконур: "Сбалансированный район с потенциалом для развития.",
+  Нура: "Растущий район, которому нужны школы и поликлиники.",
+};
+export const fmt = (v) =>
+  Number(v).toLocaleString("ru-RU", {
+    maximumFractionDigits: 2,
+  });
+export const signed = (v) => `${v > 0 ? "+" : ""}${fmt(v)}`;
+export function initialScores(data) {
+  const districts = Object.entries(data.districts).map(([name, d]) => ({
+    name,
+    population: d.population_share * 100,
+    score: Object.entries(d.indicators).reduce(
+      (s, [k, v]) => s + v * (weights[k] || 0),
+      0,
+    ),
+  }));
+  const avg = districts.reduce(
+    (s, d) => s + d.score * data.districts[d.name].population_share,
+    0,
+  );
+  const critical = Object.values(data.districts).reduce(
+    (s, d) => s + Object.values(d.indicators).filter((v) => v < 40).length,
+    0,
+  );
+  return {
+    districts,
+    score:
+      Math.round(
+        (0.7 * avg +
+          0.3 * Math.min(...districts.map((d) => d.score)) -
+          critical) *
+          100,
+      ) / 100,
+  };
+}
+export function validateSelection(items, budget) {
+  if (items.length > 5)
+    return "В сценарии уже пять решений. Сначала уберите одну инициативу.";
+  if (items.reduce((s, i) => s + i.cost, 0) > budget)
+    return "Недостаточно бюджета. Измените состав сценария.";
+  for (const c of categories.slice(1))
+    if (items.filter((i) => i.category === c.id).length > 2)
+      return `Не более двух инициатив в направлении «${c.name}».`;
+  if (items.some((i) => i.id === "M1") && items.some((i) => i.id === "M3"))
+    return "Автобусная полоса и линия ЛРТ несовместимы в одном сценарии.";
+  for (const pair of [
+    ["M4", "M7"],
+    ["M5", "M13"],
+  ]) {
+    const a = items.find((i) => i.id === pair[0]);
+    const b = items.find((i) => i.id === pair[1]);
+    if (a && b && a.district === b.district)
+      return `«${a.name}» и «${b.name}» нельзя размещать в одном районе.`;
+  }
+  return "";
+}

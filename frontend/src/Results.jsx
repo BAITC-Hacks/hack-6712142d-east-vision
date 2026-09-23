@@ -1,16 +1,264 @@
-import React,{useState} from 'react';
-import {Icon} from './Icon';
-import {fmt,signed} from './presentation';
-
-export default function Results({data,result,baseline,onEdit}){
- const [district,setDistrict]=useState(Object.keys(result.changes)[0]);
- const groups=[['strengths','Сильные стороны','check'],['risks','Риски','shield'],['tradeoffs','Компромиссы','chart'],['recommendations','Рекомендации','spark']];
- const ai=result.ai_analysis;
- return <div className="results-content page-enter"><section className="result-hero"><div className="result-hero-copy"><span className="eyebrow">ВАШИ РЕШЕНИЯ В ДЕЙСТВИИ</span><h2>Будущее города<br/>в цифрах.</h2><p>Результат на горизонте восьми кварталов.<br/>Каждое изменение рассчитано моделью.</p><button className="result-edit" onClick={onEdit}>Изменить сценарий <Icon name="arrow" size={16}/></button></div><div className="score-comparison"><span>ASTANA QUALITY OF LIFE SCORE</span><div><span>{fmt(result.baseline_score)}</span><Icon name="arrow" size={25}/><strong>{fmt(result.final_score)}</strong></div><p className={`result-delta ${result.score_delta<0?'negative':''}`}>{signed(result.score_delta)} <span>к исходному индексу</span></p></div></section>
- <div className="result-metrics">{[['Распределено',`${result.used_budget} / ${data.budget}`,'единиц бюджета'],['Критических показателей',result.critical_indicators.length,'значений ниже 40'],['Синергии',result.applied_synergies.length,'совместных эффектов']].map(([title,value,label])=><article className="panel" key={title}><span>{title}</span><strong>{value}</strong><small>{label}</small></article>)}</div>
- <section className="panel result-districts"><div className="section-header"><div><h2>Как изменились районы</h2><p>Светлая полоса — до решений, синяя — после</p></div><span className="small-pill">0 — 100</span></div><div className="comparison-rows">{baseline.districts.map(d=><button key={d.name} className={`comparison-row ${district===d.name?'chosen':''}`} onClick={()=>setDistrict(d.name)}><span>{d.name}</span><div className="comparison-track"><i style={{width:`${d.score}%`}}/><b style={{width:`${result.score.district_scores[d.name]}%`}}/></div><strong>{fmt(result.score.district_scores[d.name])}</strong><small>{signed(result.score.district_scores[d.name]-d.score)}</small></button>)}</div><div className="indicator-table"><div className="indicator-table-title"><strong>{district} · подробно</strong><span>До / после / изменение</span></div>{Object.entries(result.changes[district]||{}).map(([key,v])=><div className={`result-indicator ${v.after<40?'critical':''}`} key={key}><span>{data.indicators[key]||key}</span><span>{fmt(v.before)} <span className="muted-arrow">→</span> <b>{fmt(v.after)}</b></span><strong className={v.delta<0?'negative':v.delta>0?'positive':''}>{signed(v.delta)}</strong></div>)}</div></section>
- <section className="ai-result panel"><div className="section-header"><div><span className="eyebrow">ОТ ЦИФР К СМЫСЛУ</span><h2><Icon name="spark"/>Анализ сценария</h2></div><span className="ai-badge">AI ASSISTANT</span></div><p className="ai-summary-text">{ai?.summary||result.ai_summary||'Текстовый анализ недоступен.'}</p><div className="analysis-grid">{groups.filter(([key])=>ai?.[key]?.length).map(([key,title,icon])=><article key={key}><h3><Icon name={icon} size={16}/>{title}</h3><ul>{ai[key].map((text,i)=><li key={i}>{text}</li>)}</ul></article>)}</div></section>
- <div className="result-bottom-grid"><section className="panel detail-list"><div className="section-header"><h2>Точки внимания</h2></div>{result.critical_indicators.length?result.critical_indicators.map(c=><div className="critical-item" key={`${c.district}-${c.indicator}`}><span><b>{c.district}</b>{data.indicators[c.indicator]}</span><strong>{fmt(c.value)}</strong></div>):<p className="clear-state"><Icon name="check"/>Все показатели выше критического порога.</p>}</section><section className="panel detail-list"><div className="section-header"><h2>Сработавшие синергии</h2></div>{result.applied_synergies.length?result.applied_synergies.map((s,i)=><div className="synergy-item" key={i}><strong>{s.initiatives.join(' + ')}</strong><span>{s.district} · {data.indicators[s.indicator]} <b>{signed(s.bonus)}</b></span></div>):<p className="clear-state">В этом наборе нет дополнительных совместных эффектов.</p>}</section></div>
- <section className="panel contributions"><div className="section-header"><div><h2>Вклад каждой инициативы</h2><p>Реализованные эффекты с учётом срока запуска</p></div></div>{result.initiative_contributions.map(c=><details key={c.initiative_id}><summary><span>{c.initiative_id}</span><strong>{c.initiative_name}</strong><small>{c.district||'Весь город'}</small></summary><div>{Object.entries(c.applied_effects).map(([key,val])=><span key={key}>{data.indicators[key]||key} <b className={val<0?'negative':'positive'}>{signed(val)}</b></span>)}</div></details>)}</section>
- </div>;
+import React, { useState } from "react";
+import { Icon } from "./Icon";
+import { fmt, signed } from "./presentation";
+export default function Results({ data, result, baseline, onEdit }) {
+  const [district, setDistrict] = useState(Object.keys(result.changes)[0]);
+  return (
+    <div className="results-content page-enter">
+      <section className="result-hero">
+        <div className="result-hero-copy">
+          <span className="eyebrow">ВАШИ РЕШЕНИЯ В ДЕЙСТВИИ</span>
+          <h2>
+            Будущее города
+            <br />в цифрах.
+          </h2>
+          <p>
+            Результат на горизонте восьми кварталов.
+            <br />
+            Каждое изменение рассчитано моделью.
+          </p>
+          <button className="result-edit" onClick={onEdit}>
+            Изменить сценарий <Icon name="arrow" size={16} />
+          </button>
+        </div>
+        <div className="score-comparison">
+          <span>ASTANA QUALITY OF LIFE SCORE</span>
+          <div>
+            <span>{fmt(result.baseline_score)}</span>
+            <Icon name="arrow" size={25} />
+            <strong>{fmt(result.final_score)}</strong>
+          </div>
+          <p
+            className={`result-delta ${result.score_delta < 0 ? "negative" : ""}`}
+          >
+            {signed(result.score_delta)} <span>к исходному индексу</span>
+          </p>
+        </div>
+      </section>
+      <div className="result-metrics">
+        {[
+          [
+            "Распределено",
+            `${result.used_budget} / ${data.budget}`,
+            "единиц бюджета",
+          ],
+          [
+            "Критических показателей",
+            result.critical_indicators.length,
+            "значений ниже 40",
+          ],
+          ["Синергии", result.applied_synergies.length, "совместных эффектов"],
+        ].map(([title, value, label]) => (
+          <article className="panel" key={title}>
+            <span>{title}</span>
+            <strong>{value}</strong>
+            <small>{label}</small>
+          </article>
+        ))}
+      </div>
+      <DistrictComparison
+        data={data}
+        result={result}
+        baseline={baseline}
+        district={district}
+        setDistrict={setDistrict}
+      />
+      <AnalysisSections result={result} />
+      <OutcomeDetails data={data} result={result} />
+      <InitiativeContributions data={data} result={result} />
+    </div>
+  );
+}
+function DistrictComparison({ data, result, baseline, district, setDistrict }) {
+  return (
+    <section className="panel result-districts">
+      <div className="section-header">
+        <div>
+          <h2>Как изменились районы</h2>
+          <p>Светлая полоса — до решений, синяя — после</p>
+        </div>
+        <span className="small-pill">0 — 100</span>
+      </div>
+      <div className="comparison-rows">
+        {baseline.districts.map((d) => (
+          <button
+            key={d.name}
+            className={`comparison-row ${district === d.name ? "chosen" : ""}`}
+            onClick={() => setDistrict(d.name)}
+          >
+            <span>{d.name}</span>
+            <div className="comparison-track">
+              <i
+                style={{
+                  width: `${d.score}%`,
+                }}
+              />
+              <b
+                style={{
+                  width: `${result.score.district_scores[d.name]}%`,
+                }}
+              />
+            </div>
+            <strong>{fmt(result.score.district_scores[d.name])}</strong>
+            <small>
+              {signed(result.score.district_scores[d.name] - d.score)}
+            </small>
+          </button>
+        ))}
+      </div>
+      <div className="indicator-table">
+        <div className="indicator-table-title">
+          <strong>{district} · подробно</strong>
+          <span>До / после / изменение</span>
+        </div>
+        {Object.entries(result.changes[district] || {}).map(([key, v]) => (
+          <div
+            className={`result-indicator ${v.after < 40 ? "critical" : ""}`}
+            key={key}
+          >
+            <span>{data.indicators[key] || key}</span>
+            <span>
+              {fmt(v.before)} <span className="muted-arrow">→</span>{" "}
+              <b>{fmt(v.after)}</b>
+            </span>
+            <strong
+              className={
+                v.delta < 0 ? "negative" : v.delta > 0 ? "positive" : ""
+              }
+            >
+              {signed(v.delta)}
+            </strong>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+function AnalysisSections({ result }) {
+  const groups = [
+    ["strengths", "Сильные стороны", "check"],
+    ["risks", "Риски", "shield"],
+    ["tradeoffs", "Компромиссы", "chart"],
+    ["recommendations", "Рекомендации", "spark"],
+  ];
+  const ai = result.ai_analysis;
+  return (
+    <section className="ai-result panel">
+      <div className="section-header">
+        <div>
+          <span className="eyebrow">ОТ ЦИФР К СМЫСЛУ</span>
+          <h2>
+            <Icon name="spark" />
+            Анализ сценария
+          </h2>
+        </div>
+        <span className="ai-badge">AI ASSISTANT</span>
+      </div>
+      <p className="ai-summary-text">
+        {ai?.summary || result.ai_summary || "Текстовый анализ недоступен."}
+      </p>
+      <div className="analysis-grid">
+        {groups
+          .filter(([key]) => ai?.[key]?.length)
+          .map(([key, title, icon]) => (
+            <article key={key}>
+              <h3>
+                <Icon name={icon} size={16} />
+                {title}
+              </h3>
+              <ul>
+                {ai[key].map((text, i) => (
+                  <li key={i}>{text}</li>
+                ))}
+              </ul>
+            </article>
+          ))}
+      </div>
+    </section>
+  );
+}
+function OutcomeDetails({ data, result }) {
+  return (
+    <div className="result-bottom-grid">
+      <section className="panel detail-list">
+        <div className="section-header">
+          <h2>Точки внимания</h2>
+        </div>
+        {result.critical_indicators.length ? (
+          result.critical_indicators.map((c) => (
+            <div className="critical-item" key={`${c.district}-${c.indicator}`}>
+              <span>
+                <b>{c.district}</b>
+                {data.indicators[c.indicator]}
+              </span>
+              <strong>{fmt(c.value)}</strong>
+            </div>
+          ))
+        ) : (
+          <p className="clear-state">
+            <Icon name="check" />
+            Все показатели выше критического порога.
+          </p>
+        )}
+      </section>
+      <section className="panel detail-list">
+        <div className="section-header">
+          <h2>Сработавшие синергии</h2>
+        </div>
+        {result.applied_synergies.length ? (
+          result.applied_synergies.map((s, i) => (
+            <div className="synergy-item" key={i}>
+              <strong>{s.initiatives.join(" + ")}</strong>
+              <span>
+                {s.district} · {data.indicators[s.indicator]}{" "}
+                <b>{signed(s.bonus)}</b>
+              </span>
+            </div>
+          ))
+        ) : (
+          <p className="clear-state">
+            В этом наборе нет дополнительных совместных эффектов.
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+function InitiativeContributions({ data, result }) {
+  const contributions = result.initiative_contributions ?? [];
+  return (
+    <section className="panel contributions">
+      <div className="section-header">
+        <div>
+          <h2>Вклад каждой инициативы</h2>
+          <p>Реализованные эффекты с учётом срока запуска</p>
+        </div>
+      </div>
+      {contributions.length ? (
+        contributions.map((c) => (
+          <details key={c.initiative_id}>
+            <summary>
+              <span>{c.initiative_id}</span>
+              <strong>{c.initiative_name}</strong>
+              <small>{c.district || "Весь город"}</small>
+            </summary>
+            <div>
+              {Object.entries(c.applied_effects).map(([key, val]) => (
+                <span key={key}>
+                  {data.indicators[key] || key}{" "}
+                  <b className={val < 0 ? "negative" : "positive"}>
+                    {signed(val)}
+                  </b>
+                </span>
+              ))}
+            </div>
+          </details>
+        ))
+      ) : (
+        <p className="clear-state">
+          Детализация вклада недоступна в этой версии backend.
+        </p>
+      )}
+    </section>
+  );
 }

@@ -1,39 +1,308 @@
-import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {getSimulationData,simulate} from './api/api';
-import {Icon} from './Icon';
-import CityMap from './CityMap';
-import Results from './Results';
-import demoData from './demoData.json';
-import {categories,descriptions,profiles,initialScores,fmt,validateSelection} from './presentation';
+import React, { useState } from "react";
+import { Icon } from "./Icon";
+import CityMap from "./CityMap";
+import Results from "./Results";
+import { profiles, fmt } from "./presentation";
+import useScenario from "./hooks/useScenario";
+import Empty from "./components/Empty";
+import HelpDialog from "./components/HelpDialog";
+import Sidebar from "./components/Sidebar";
+import InitiativeCatalog from "./components/InitiativeCatalog";
+import ScenarioPage from "./components/ScenarioPage";
+import ScenarioPanel from "./components/ScenarioPanel";
 
-
-function AnimatedNumber({value}){const [shown,setShown]=useState(value);const current=useRef(value);useEffect(()=>{const start=current.current;let frame;const beginning=performance.now();function tick(now){const t=Math.min((now-beginning)/450,1);current.current=start+(value-start)*(1-Math.pow(1-t,3));setShown(current.current);if(t<1)frame=requestAnimationFrame(tick);}if(matchMedia('(prefers-reduced-motion: reduce)').matches){setShown(value);current.current=value;return;}frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[value]);return <>{fmt(Math.round(shown*100)/100)}</>;}
-export default function App(){
- const [data,setData]=useState(demoData);const [connected,setConnected]=useState(false);const [connecting,setConnecting]=useState(true);const [page,setPage]=useState('overview');const [category,setCategory]=useState('all');const [activeDistrict,setActiveDistrict]=useState('Нура');const [decisions,setDecisions]=useState([]);const [result,setResult]=useState(null);const [busy,setBusy]=useState(false);const [notice,setNotice]=useState('');const [help,setHelp]=useState(false);const requestVersion=useRef(0);const helpRef=useRef(null);
- const baseline=useMemo(()=>initialScores(data),[data]);const names=Object.keys(data.districts);const district=baseline.districts.find(d=>d.name===activeDistrict)||baseline.districts[0];const chosen=decisions.map(d=>({...data.initiatives.find(i=>i.id===d.id),district:d.district}));const used=chosen.reduce((s,i)=>s+i.cost,0);const shownScore=result?.final_score??baseline.score;
- const load=useCallback(async()=>{const version=++requestVersion.current;setConnecting(true);try{const next=await getSimulationData();if(version!==requestVersion.current)return;setData(next);setConnected(true);setDecisions([]);setResult(null);setActiveDistrict(Object.hasOwn(next.districts,'Нура')?'Нура':Object.keys(next.districts)[0]);setNotice('');}catch{if(version===requestVersion.current)setConnected(false);}finally{if(version===requestVersion.current)setConnecting(false);}},[]);
- useEffect(()=>{load();return()=>{requestVersion.current++;};},[load]);
- useEffect(()=>{if(!help)return;const previous=document.activeElement;helpRef.current?.querySelector('button')?.focus();function onKey(e){if(e.key==='Escape')setHelp(false);if(e.key==='Tab'){const elements=helpRef.current?.querySelectorAll('button,a[href]');if(!elements?.length)return;const first=elements[0],last=elements[elements.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}}document.addEventListener('keydown',onKey);return()=>{document.removeEventListener('keydown',onKey);previous?.focus();};},[help]);
- function navigate(next){setPage(next);window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}
- function replaceDecisions(next){if(busy)return;const expanded=next.map(d=>({...data.initiatives.find(i=>i.id===d.id),district:d.district}));const error=validateSelection(expanded,data.budget);if(error){setNotice(error);return;}setDecisions(next);setResult(null);setNotice('');}
- function toggle(item){if(busy)return;replaceDecisions(decisions.some(d=>d.id===item.id)?decisions.filter(d=>d.id!==item.id):[...decisions,{id:item.id,district:item.type==='district'?activeDistrict:null}]);}
- function changeDistrict(id,name){replaceDecisions(decisions.map(d=>d.id===id?{...d,district:name}:d));}
- async function run(){if(busy||!connected||decisions.length!==5)return;setBusy(true);setNotice('');try{const response=await simulate(decisions.map(d=>({initiative_id:d.id,district:d.district})));setResult(response);navigate('results');}catch(error){setNotice(error.message==='Failed to fetch'?'Связь с сервером потеряна. Убедитесь, что он запущен, и повторите расчёт.':error.message);}finally{setBusy(false);}}
- const visible=data.initiatives.filter(i=>category==='all'||i.category===category);
- return <div className="app-shell"><aside className="sidebar"><a className="brand" href="#" onClick={e=>{e.preventDefault();navigate('overview');}}><span className="brand-mark">a<span>ı</span></span><span>akim<span className="brand-dot">.</span><small>ГОРОД НАЧИНАЕТСЯ С ВАС</small></span></a><div className="workspace-label">ГОРОДСКАЯ ЛАБОРАТОРИЯ</div><nav aria-label="Основная навигация">{[['overview','grid','Обзор города'],['initiatives','bolt','Инициативы'],['districts','map','Районы'],['scenario','chart','Мой сценарий']].map(([id,icon,label])=><button key={id} onClick={()=>navigate(id)} className={`nav-item ${page===id?'selected':''}`} aria-label={label} aria-current={page===id?'page':undefined}><Icon name={icon}/><span className="nav-label">{label}</span>{id==='scenario'&&<span className="nav-count">{decisions.length}</span>}</button>)}<button className={`nav-item ${page==='results'?'selected':''}`} onClick={()=>navigate('results')} aria-label="Результаты"><Icon name="spark"/><span className="nav-label">Результаты</span>{result&&<span className="result-ready"/>}</button></nav><div className="sidebar-note"><span className="tiny-label">ВАША МИССИЯ</span><h3>Пять решений.<br/>Большое будущее.</h3><p>Создайте город, в котором хочется жить. Начните с тех, кому нужнее.</p><div className="mission-dots">{[0,1,2,3,4].map(i=><span key={i} className={i<decisions.length?'filled':''}/>)}</div><span>{decisions.length} из 5 решений принято</span></div><button className="help-button" onClick={()=>setHelp(true)}><Icon name="info"/>Как это работает <span>↗</span></button><div className="profile"><span className="avatar">АК</span><div><strong>Аким города</strong><small>Астана · рабочее пространство</small></div><span className="online-dot"/></div></aside>
- <div className="main-shell"><header className="topbar"><div className="breadcrumb">Городская лаборатория <span>/</span><strong>Астана</strong></div><div className="topbar-right"><button className={`connection-status ${connected?'connected':''}`} onClick={load} disabled={connecting||busy}><span className={connecting?'status-pulse':''}/>{connecting?'Подключаемся…':connected?'Сервер подключён':'Демо · подключить сервер'}</button><span className="edition">HACKALEM / 2026</span></div></header><main>
- <section className="page-heading"><div><div className="eyebrow"><span/> ГОРОД В ВАШИХ РУКАХ</div><h1>{page==='overview'?'Большие перемены.':page==='initiatives'?'Решения с характером.':page==='districts'?'Каждый район важен.':page==='results'?'Ваш вклад в будущее.':'План, который меняет город.'}<span>{page==='overview'?'Начните с пяти решений.':page==='initiatives'?'Выберите свои приоритеты.':page==='districts'?'Услышьте его потребности.':page==='results'?'Посмотрите на результат.':'От идеи — к действию.'}</span></h1><p>Распределяйте ресурсы. Развивайте районы. Создавайте Астану для людей.</p></div><button className="subtle-button" onClick={()=>setHelp(true)}><Icon name="clock" size={16}/>8 кварталов · 2 года<Icon name="info" size={15}/></button></section>
- {!connected&&!connecting&&<div className="demo-notice"><Icon name="info" size={17}/><span>Демонстрация интерфейса. Для расчёта сценария подключите сервер симуляции.</span><button onClick={load}>Повторить подключение <Icon name="arrow" size={14}/></button></div>}
- <div className={`dashboard-layout ${page==='results'&&result?'result-layout':''}`}><div className="content-column">
- {(page==='overview'||page==='districts')&&<section className="map-panel panel page-enter"><div className="section-header"><div><h2>Пульс города <span className="small-pill">{names.length} районов</span></h2><p>У каждого района — свои точки роста</p></div><span className="live-label"><span/>{result?'Сценарий рассчитан':'Исходные показатели'}</span></div><div className="map-content"><CityMap active={activeDistrict} onSelect={setActiveDistrict} decisions={chosen} districts={baseline.districts} resultScores={result?.score?.district_scores}/><div className="map-legend"><span><i className="legend-dot"/>Выбранный район</span><span>Условная схема · не географическая карта</span></div></div><div className="district-strip"><div className="district-icon"><Icon name="pin"/></div><div className="district-copy"><strong>{district.name}<span>{fmt(district.population)}% населения</span></strong><p>{profiles[district.name]}</p></div><div className="district-score"><strong>{fmt(district.score)}</strong><span>исходный индекс</span></div></div></section>}
- {page==='districts'&&<section className="panel district-detail page-enter"><div className="section-header"><div><h2>Показатели · {district.name}</h2><p>Исходная ситуация по десяти показателям</p></div></div>{Object.entries(data.districts[district.name].indicators).map(([key,value],i)=><div className="indicator-row" key={`${district.name}-${key}`} style={{'--order':i}}><span>{data.indicators[key]}</span><div className="indicator-track"><span className={value<40?'critical-bar':''} style={{width:`${value}%`}}/></div><strong>{value}</strong></div>)}</section>}
- {(page==='overview'||page==='initiatives')&&<section className="initiatives-section page-enter"><div className="section-header initiative-header"><div><div className="eyebrow muted">ОТ ВОЗМОЖНОСТЕЙ К ДЕЙСТВИЯМ</div><h2>Какой будет ваша Астана?</h2></div><span className="catalog-count">{data.initiatives.length} инициатив</span></div><div className="category-tabs" role="group" aria-label="Направление инициатив">{categories.map(c=><button key={c.id} aria-pressed={category===c.id} onClick={()=>setCategory(c.id)} className={category===c.id?'active':''}><Icon name={c.icon} size={16}/>{c.name}</button>)}</div><div className="catalog-toolbar"><span>Не более двух мер одного направления</span><label><Icon name="pin" size={15}/><select aria-label="Район для новых инициатив" value={activeDistrict} onChange={e=>setActiveDistrict(e.target.value)}>{names.map(n=><option key={n}>{n}</option>)}</select></label></div><div className="initiative-grid" key={category}>{visible.map((item,index)=>{const cat=categories.find(c=>c.id===item.category);const decision=decisions.find(d=>d.id===item.id);return <article className={`initiative-card ${decision?'is-selected':''}`} key={item.id} style={{'--order':index}}><div className="card-top"><span className={`category-icon ${item.category}`}><Icon name={cat?.icon} size={22}/></span><span className="card-category">{cat?.name||item.category}</span><span className="initiative-id">{item.id}</span></div><h3>{item.name}</h3><p>{descriptions[item.id]||'Инвестиция в качество городской среды.'}</p><div className="effect-chips">{Object.entries(item.effects).map(([key,v])=><span key={key} className={v<0?'negative':''} title={data.indicators[key]}>{data.indicators[key]||key} <b>{v>0?'+':''}{v}</b></span>)}</div><div className="card-meta"><span><Icon name="pin" size={13}/>{item.type==='city'?'Весь город':decision?.district||activeDistrict}</span><span><Icon name="clock" size={13}/>{item.lag} кв.</span></div>{decision&&item.type==='district'&&<select className="inline-district" aria-label={`Район: ${item.name}`} value={decision.district} disabled={busy} onChange={e=>changeDistrict(item.id,e.target.value)}>{names.map(n=><option key={n}>{n}</option>)}</select>}<div className="card-bottom"><div><strong>{item.cost}</strong><span> ед. бюджета</span></div><button disabled={busy} className={`add-button ${decision?'added':''}`} onClick={()=>toggle(item)} aria-label={`${decision?'Убрать':'Добавить'}: ${item.name}`}><Icon name={decision?'check':'plus'} size={17}/>{decision?'В сценарии':'Добавить'}</button></div></article>;})}</div><p className="catalog-footnote">Показаны полные эффекты мероприятий. При расчёте сервер учитывает срок запуска, синергии и ограничения.</p></section>}
- {page==='scenario'&&<section className="panel scenario-page page-enter"><div className="section-header"><div><h2>Ваш сценарий развития</h2><p>Пять решений на ближайшие два года</p></div><span className="small-pill">{chosen.length} / 5</span></div>{chosen.length?chosen.map((item,index)=><div className="scenario-row" key={item.id}><span className="row-number">0{index+1}</span><div><h3>{item.name}</h3>{item.type==='district'?<select className="inline-district" aria-label={`Район: ${item.name}`} value={item.district} disabled={busy} onChange={e=>changeDistrict(item.id,e.target.value)}>{names.map(n=><option key={n}>{n}</option>)}</select>:<p>Весь город</p>}<p>Эффект начинается через {item.lag} кв.</p></div><strong>{item.cost} ед.</strong><button className="icon-button" disabled={busy} aria-label={`Убрать: ${item.name}`} onClick={()=>toggle(item)}><Icon name="close" size={16}/></button></div>):<Empty icon="map" title="Дайте городу направление" text="Добавьте инициативы, чтобы собрать свой первый сценарий." action={()=>navigate('initiatives')} label="Выбрать инициативы"/>}{chosen.length>0&&<button className="text-button" onClick={()=>navigate('overview')}>Посмотреть изменения на карте <Icon name="arrow" size={16}/></button>}</section>}
- {page==='results'&&(result?<Results data={data} result={result} baseline={baseline} onEdit={()=>navigate('scenario')}/>:<section className="panel page-enter"><Empty icon="chart" title="Здесь появится результат ваших решений" text="Соберите пять инициатив и запустите симуляцию. Получите индекс качества жизни, изменения по районам и анализ." action={()=>navigate('initiatives')} label="Перейти к инициативам"/></section>)}
- </div><aside className="right-column"><section className="score-card"><div className="score-header"><span>КАЧЕСТВО ЖИЗНИ</span><Icon name="chart" size={20}/></div><div className="score-value"><AnimatedNumber value={shownScore}/><small>/ 100</small></div><div className="score-track"><span style={{width:`${Math.max(0,Math.min(shownScore,100))}%`}}/></div><p>Astana Quality of Life Score</p><div className="score-footer"><span className="dark-dot"/>{result?'Результат вашей симуляции':'Отправная точка вашего сценария'}</div><div className="score-orbit orbit-one"/><div className="score-orbit orbit-two"/></section><section className="panel budget-panel"><div className="section-header"><h2>Бюджет города</h2><Icon name="bolt" size={18}/></div><div className="budget-value"><AnimatedNumber value={data.budget-used}/><span>/ {data.budget} ед.</span></div><p className="budget-caption">доступно для ваших решений</p><div className="budget-track"><span style={{width:`${used/data.budget*100}%`}}/></div><div className="budget-labels"><span><i/>Распределено</span><strong>{used} ед.</strong></div><div className="budget-divider"/><div className="plan-heading"><h3>Ваши решения</h3><span>{chosen.length} из 5</span></div><div className="decision-slots">{Array.from({length:5},(_,i)=>chosen[i]?<div className="decision-slot occupied" key={chosen[i].id}><span className="slot-number"><Icon name="check" size={13}/></span><div><strong title={chosen[i].name}>{chosen[i].name}</strong><small>{chosen[i].district||'Весь город'} · {chosen[i].cost} ед.</small></div><button disabled={busy} className="icon-button" aria-label={`Удалить решение ${i+1}`} onClick={()=>toggle(chosen[i])}><Icon name="close" size={14}/></button></div>:<div className="decision-slot" key={`empty-${i}`}><span className="slot-number">0{i+1}</span><span>Место для перемен</span><span className="slot-plus">+</span></div>)}</div><button className="primary-button simulate-button" disabled={busy||chosen.length!==5||!connected} onClick={run}>{busy?<><span className="spinner"/>Рассчитываем сценарий…</>:<>Запустить симуляцию <Icon name="arrow" size={17}/></>}</button><p className="button-hint">{busy?'Модель считает эффект, AI готовит объяснение':!connected?'Расчёт доступен после подключения сервера':chosen.length===5?'Город готов к вашим решениям':'Выберите ровно 5 инициатив'}</p>{chosen.length>0&&<button className="reset-button" disabled={busy} onClick={()=>replaceDecisions([])}>Сбросить сценарий</button>}</section><section className="insight-card"><span className="insight-icon"><Icon name="spark"/></span><div><h3>Начните с тех, кому нужнее</h3><p>Поддержка самого слабого района влияет на итоговую оценку всего города.</p><button onClick={()=>{setActiveDistrict(baseline.districts.reduce((a,b)=>a.score<b.score?a:b).name);setCategory('social');navigate('initiatives');}}>Найти точку роста <Icon name="arrow" size={15}/></button></div></section></aside></div>
- <footer className="page-footer"><span>akim. <span>Маленькие решения. Большое будущее.</span></span><span>{connected?'Синтетическая модель · данные сервера':'Демонстрационные данные'} · East Vision</span></footer></main></div>
- {notice&&<div className="toast" role="alert"><Icon name="info"/><span>{notice}</span><button className="icon-button" aria-label="Закрыть уведомление" onClick={()=>setNotice('')}><Icon name="close" size={18}/></button></div>}
- {help&&<div className="modal-backdrop" onClick={()=>setHelp(false)}><section className="help-modal" ref={helpRef} role="dialog" aria-modal="true" aria-labelledby="help-title" onClick={e=>e.stopPropagation()}><button className="modal-close icon-button" aria-label="Закрыть правила" onClick={()=>setHelp(false)}><Icon name="close"/></button><span className="category-icon"><Icon name="map" size={26}/></span><h2 id="help-title">Город начинается с ваших решений</h2><p>Выберите ровно пять инициатив на бюджет {data.budget} единиц. Горизонт развития — восемь кварталов.</p><ol><li>Изучите потребности районов и выберите место для инициативы.</li><li>Добавьте до двух мер в каждом направлении. Учитывайте стоимость и совместимость.</li><li>Сравните карту «Сейчас» и «С решениями».</li><li>Запустите симуляцию и изучите результат и анализ.</li></ol><div className="help-note">Итоговый балл учитывает город в целом, самый слабый район и показатели ниже 40. Остаток бюджета не даёт бонуса.</div><button className="primary-button" onClick={()=>setHelp(false)}>Начать менять город <Icon name="arrow" size={17}/></button></section></div>}
- </div>;
+export default function App() {
+  const [page, setPage] = useState("overview");
+  const [category, setCategory] = useState("all");
+  const [help, setHelp] = useState(false);
+  function navigate(next) {
+    setPage(next);
+    window.scrollTo({
+      top: 0,
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }
+  const {
+    data,
+    connected,
+    connecting,
+    activeDistrict,
+    setActiveDistrict,
+    decisions,
+    result,
+    busy,
+    notice,
+    setNotice,
+    baseline,
+    names,
+    district,
+    chosen,
+    used,
+    shownScore,
+    load,
+    replaceDecisions,
+    toggle,
+    changeDistrict,
+    run,
+  } = useScenario(navigate);
+  return (
+    <div className="app-shell">
+      <Sidebar
+        page={page}
+        navigate={navigate}
+        decisions={decisions}
+        result={result}
+        setHelp={setHelp}
+      />
+      <div className="main-shell">
+        <header className="topbar">
+          <div className="breadcrumb">
+            Городская лаборатория <span>/</span>
+            <strong>Астана</strong>
+          </div>
+          <div className="topbar-right">
+            <button
+              className={`connection-status ${connected ? "connected" : ""}`}
+              onClick={load}
+              disabled={connecting || busy}
+            >
+              <span className={connecting ? "status-pulse" : ""} />
+              {connecting
+                ? "Подключаемся…"
+                : connected
+                  ? "Сервер подключён"
+                  : "Демо · подключить сервер"}
+            </button>
+            <span className="edition">HACKALEM / 2026</span>
+          </div>
+        </header>
+        <main>
+          <section className="page-heading">
+            <div>
+              <div className="eyebrow">
+                <span /> ГОРОД В ВАШИХ РУКАХ
+              </div>
+              <h1>
+                {page === "overview"
+                  ? "Большие перемены."
+                  : page === "initiatives"
+                    ? "Решения с характером."
+                    : page === "districts"
+                      ? "Каждый район важен."
+                      : page === "results"
+                        ? "Ваш вклад в будущее."
+                        : "План, который меняет город."}
+                <span>
+                  {page === "overview"
+                    ? "Начните с пяти решений."
+                    : page === "initiatives"
+                      ? "Выберите свои приоритеты."
+                      : page === "districts"
+                        ? "Услышьте его потребности."
+                        : page === "results"
+                          ? "Посмотрите на результат."
+                          : "От идеи — к действию."}
+                </span>
+              </h1>
+              <p>
+                Распределяйте ресурсы. Развивайте районы. Создавайте Астану для
+                людей.
+              </p>
+            </div>
+            <button className="subtle-button" onClick={() => setHelp(true)}>
+              <Icon name="clock" size={16} />8 кварталов · 2 года
+              <Icon name="info" size={15} />
+            </button>
+          </section>
+          {!connected && !connecting && (
+            <div className="demo-notice">
+              <Icon name="info" size={17} />
+              <span>
+                Демонстрация интерфейса. Для расчёта сценария подключите сервер
+                симуляции.
+              </span>
+              <button onClick={load}>
+                Повторить подключение <Icon name="arrow" size={14} />
+              </button>
+            </div>
+          )}
+          <div
+            className={`dashboard-layout ${page === "results" && result ? "result-layout" : ""}`}
+          >
+            <div className="content-column">
+              {(page === "overview" || page === "districts") && (
+                <section className="map-panel panel page-enter">
+                  <div className="section-header">
+                    <div>
+                      <h2>
+                        Пульс города{" "}
+                        <span className="small-pill">
+                          {names.length} районов
+                        </span>
+                      </h2>
+                      <p>У каждого района — свои точки роста</p>
+                    </div>
+                    <span className="live-label">
+                      <span />
+                      {result ? "Сценарий рассчитан" : "Исходные показатели"}
+                    </span>
+                  </div>
+                  <div className="map-content">
+                    <CityMap
+                      active={activeDistrict}
+                      onSelect={setActiveDistrict}
+                      decisions={chosen}
+                      districts={baseline.districts}
+                      resultScores={result?.score?.district_scores}
+                    />
+                    <div className="map-legend">
+                      <span>
+                        <i className="legend-dot" />
+                        Выбранный район
+                      </span>
+                      <span>Условная схема · не географическая карта</span>
+                    </div>
+                  </div>
+                  <div className="district-strip">
+                    <div className="district-icon">
+                      <Icon name="pin" />
+                    </div>
+                    <div className="district-copy">
+                      <strong>
+                        {district.name}
+                        <span>{fmt(district.population)}% населения</span>
+                      </strong>
+                      <p>{profiles[district.name]}</p>
+                    </div>
+                    <div className="district-score">
+                      <strong>{fmt(district.score)}</strong>
+                      <span>исходный индекс</span>
+                    </div>
+                  </div>
+                </section>
+              )}
+              {page === "districts" && (
+                <section className="panel district-detail page-enter">
+                  <div className="section-header">
+                    <div>
+                      <h2>Показатели · {district.name}</h2>
+                      <p>Исходная ситуация по десяти показателям</p>
+                    </div>
+                  </div>
+                  {Object.entries(data.districts[district.name].indicators).map(
+                    ([key, value], i) => (
+                      <div
+                        className="indicator-row"
+                        key={`${district.name}-${key}`}
+                        style={{
+                          "--order": i,
+                        }}
+                      >
+                        <span>{data.indicators[key]}</span>
+                        <div className="indicator-track">
+                          <span
+                            className={value < 40 ? "critical-bar" : ""}
+                            style={{
+                              width: `${value}%`,
+                            }}
+                          />
+                        </div>
+                        <strong>{value}</strong>
+                      </div>
+                    ),
+                  )}
+                </section>
+              )}
+              {(page === "overview" || page === "initiatives") && (
+                <InitiativeCatalog
+                  data={data}
+                  category={category}
+                  setCategory={setCategory}
+                  activeDistrict={activeDistrict}
+                  setActiveDistrict={setActiveDistrict}
+                  names={names}
+                  decisions={decisions}
+                  busy={busy}
+                  changeDistrict={changeDistrict}
+                  toggle={toggle}
+                />
+              )}
+              {page === "scenario" && (
+                <ScenarioPage
+                  chosen={chosen}
+                  names={names}
+                  busy={busy}
+                  changeDistrict={changeDistrict}
+                  toggle={toggle}
+                  navigate={navigate}
+                />
+              )}
+              {page === "results" &&
+                (result ? (
+                  <Results
+                    data={data}
+                    result={result}
+                    baseline={baseline}
+                    onEdit={() => navigate("scenario")}
+                  />
+                ) : (
+                  <section className="panel page-enter">
+                    <Empty
+                      icon="chart"
+                      title="Здесь появится результат ваших решений"
+                      text="Соберите пять инициатив и запустите симуляцию. Получите индекс качества жизни, изменения по районам и анализ."
+                      action={() => navigate("initiatives")}
+                      label="Перейти к инициативам"
+                    />
+                  </section>
+                ))}
+            </div>
+            <ScenarioPanel
+              shownScore={shownScore}
+              result={result}
+              data={data}
+              used={used}
+              chosen={chosen}
+              busy={busy}
+              connected={connected}
+              run={run}
+              toggle={toggle}
+              replaceDecisions={replaceDecisions}
+              setActiveDistrict={setActiveDistrict}
+              baseline={baseline}
+              setCategory={setCategory}
+              navigate={navigate}
+            />
+          </div>
+          <footer className="page-footer">
+            <span>
+              akim. <span>Маленькие решения. Большое будущее.</span>
+            </span>
+            <span>
+              {connected
+                ? "Синтетическая модель · данные сервера"
+                : "Демонстрационные данные"}{" "}
+              · East Vision
+            </span>
+          </footer>
+        </main>
+      </div>
+      {notice && (
+        <div className="toast" role="alert">
+          <Icon name="info" />
+          <span>{notice}</span>
+          <button
+            className="icon-button"
+            aria-label="Закрыть уведомление"
+            onClick={() => setNotice("")}
+          >
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+      )}
+      <HelpDialog help={help} setHelp={setHelp} budget={data.budget} />
+    </div>
+  );
 }
-function Empty({icon,title,text,action,label}){return <div className="empty-scenario"><div className="empty-orbit"><Icon name={icon} size={38}/></div><h3>{title}</h3><p>{text}</p><button className="primary-button" onClick={action}>{label}<Icon name="arrow" size={17}/></button></div>;}
